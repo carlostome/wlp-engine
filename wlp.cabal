@@ -15,20 +15,26 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Solver
+  exposed-modules:     Stmt,
+                       Expr,
+                       Var
 
   build-depends:       base >= 4.7 && < 5,
                        containers,
-                       sbv
+                       sbv,
+                       mtl,
+                       ansi-wl-pprint
   default-language:    Haskell2010
 
--- executable wlp-exe
---   hs-source-dirs:      app
---   main-is:             Main.hs
---   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
---   build-depends:       base
---                      , wlp
---   default-language:    Haskell2010
+executable wlp-exe
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base,
+                       wlp,
+                       ansi-wl-pprint,
+                       sbv
+  default-language:    Haskell2010
 
 test-suite simple-test
   type:                exitcode-stdio-1.0
