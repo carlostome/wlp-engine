@@ -53,14 +53,14 @@ var a:[int], j:int, i:int, x:int, y:int in
   assert (a[i] = y /\ a[j] = x);
 end
 -}
--- swaparr :: Stmt
--- swaparr = vars ["a" ::: intarr, "i" ::: int, "y" ::: int, "x" ::: int, "y" ::: int]
---       [ assume (((ai "a" |: vi "i") =:= vi "x") /\: ((ai "a" |: vi "j") =:= vi "y"))
---       , vars ["tmp" ::: int]
---           [ asgi  ["tmp"] [ai "a" |: vi "i"]]
---           - , asgai [""]    [vi "x" -: vi "y"]
---           -- , asgai ["x"]   [vi "x" -: vi "y"]]
---       , assume (((ai "a" |: vi "i") =:= vi "y") /\: ((ai "a" |: vi "j") =:= vi "x"))]
+swaparr :: Stmt
+swaparr = vars ["a" ::: intarr, "i" ::: int, "j" ::: int, "x" ::: int, "y" ::: int]
+      [ assume ((("a" `ati` vi "i") ==. vi "x") /\ (("a" `ati` vi "j") ==. vi "y"))
+      , vars ["tmp" ::: int]
+          [ asgi  ["tmp"] ["a" `ati` vi "i"]
+          , asgai [("a", vi "i")] ["a" `ati` vi "j"]
+          , asgai [("a", vi "j")] [vi "tmp"]]
+      , assert ((("a" `ati` vi "i") ==. vi "y") /\ (("a" `ati` vi "j") ==. vi "x"))]
 
 {-- | Example D1
 var x:int, y:iny in
@@ -127,3 +127,22 @@ minind = vars ["a" ::: intarr, "i" ::: int, "N" ::: int, "i0" ::: int, "r" ::: i
           , assert (forall ("k" ::: int) (vi "i" <=. vi "k" /\ vi "k" <. vi "N" ==>
                                          (("a" `ati` vi "r") <=. ("a" `ati` vi "k") )))]
 
+{-- | Loop1
+var a:[int], i:int, s:int, N:int in
+  assume 0=i /\ s=0 /\ 0<=N ;
+  while i<N {
+    assert 0<=i /\ i<N ;
+    s := s + a[i] ;
+    i := i+1
+  }
+  assert true
+end
+-}
+loop1k :: Integer -> Integer ->  Stmt
+loop1k k n = vars ["a" ::: intarr, "i" ::: int, "s" ::: int, "N" ::: int]
+          [ assume (vi "i" ==. l 0 /\ vi "s" ==. l 0 /\ l 0 <=. vi "N" /\ vi "N" ==. l n)
+          , whileK k (vi "i" <. vi "N")
+                      (stmts [ assert (vi "i" >=. l 0 /\ vi "i" <. vi "N")
+                             , asgi ["s"] [vi "s" +. "a" `ati` vi "i"]
+                             , asgi ["i"] [vi "i" +. l 1]])
+          , assert (l True)]

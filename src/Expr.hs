@@ -5,7 +5,7 @@ module Expr (
   Expr,
   -- * Smart constructors
   l, vi, vb,
-  ati,  atb,
+  ati,
   forall, foralls,
   -- * Operators
   -- ** Logical operators
@@ -17,12 +17,15 @@ module Expr (
   -- * Interpretation
   interpret',
   -- ** Auxiliary functions
-  subst1, subst2, boundVars
+  subst1, subst2, boundVars, cond1, cond2, splice
+  
   ) where
 
 import           Data.List                    (delete, nub)
 import           Data.Map                     (Map)
 import qualified Data.Map                     as M
+import Control.Applicative ((<|>))
+import Data.Maybe (fromMaybe)
 import           Data.SBV                     hiding (forall, (==>), (<+>))
 import qualified Data.SBV                     as SBV
 import           Text.PrettyPrint.ANSI.Leijen hiding (bool, int)
@@ -38,10 +41,12 @@ data Expr t where
   VarB   :: Name -> Expr Bool
 
   IxIArr  :: Name -> Expr Integer -> Expr Integer
-  IxBArr  :: Name -> Expr Integer -> Expr Bool
+  -- IxBArr  :: Name -> Expr Integer -> Expr Bool
 
   BinOp   :: (C a, C b) => BinOp a b -> Expr a -> Expr a -> Expr b
   UnOp    :: UnOp a    -> Expr a -> Expr a
+
+  Cond    :: Expr Bool -> Expr a -> Expr a -> Expr a
   Forall  :: Var -> Expr Bool -> Expr Bool
 
 -- Smart constructors
@@ -50,7 +55,7 @@ l   = Lit
 vi  = VarI
 vb  = VarB
 ati = IxIArr
-atb = IxBArr
+-- atb = IxBArr
 forall  = Forall
 foralls vs expr = foldr Forall expr vs
 
@@ -82,6 +87,8 @@ data UnOp a where
 
 neg :: Expr Bool -> Expr Bool
 neg = UnOp Not
+
+cond = Cond
 
 infixl 6 +., -.
 infixl 5 <. ,<=., ==.
@@ -116,11 +123,11 @@ interpret envI envB envAI envAB expr =
       case M.lookup name envAI of
         Nothing     -> error $ "Unbound variable: " ++ name ++ " of type [int]"
         Just arr    -> return (readArray arr sym1)
-    IxBArr name ix -> do
-      sym1 <- interpret envI envB envAI envAB ix
-      case M.lookup name envAB of
-        Nothing     -> error $ "Unbound variable: " ++ name ++ " of type [bool]"
-        Just arr    -> return (readArray arr sym1)
+    -- IxBArr name ix -> do
+    --   sym1 <- interpret envI envB envAI envAB ix
+    --   case M.lookup name envAB of
+    --     Nothing     -> error $ "Unbound variable: " ++ name ++ " of type [bool]"
+    --     Just arr    -> return (readArray arr sym1)
 
     Forall (var ::: type') expr ->
       case type' of
@@ -157,6 +164,42 @@ interpret envI envB envAI envAB expr =
         getUnOp :: (SymWord a) => UnOp a -> (SBV a -> SBV a)
         getUnOp Not = bnot
 
+splice :: (Name, Expr Integer) -> Expr Integer -> Expr t-> Expr t
+splice (n,ix) expr e@(Lit q)  = e
+splice (n,ix) expr e@(VarI q) = e
+splice (n,ix) expr e@(VarB q) = e
+splice (n,ix) expr (BinOp op q1 q2) = BinOp op (splice (n,ix) expr q1) (splice (n,ix) expr q2)
+splice (n,ix) expr e@(IxIArr n' ix')
+  | n == n'   = Cond (ix ==. ix') expr e
+  | otherwise = e
+splice (n,ix) expr (UnOp op q2)   = UnOp op $ splice (n,ix) expr q2
+splice (n,ix) expr (Forall v q2) = Forall v $ splice (n,ix) expr q2
+
+cond1 ::  Expr Bool -> Expr Bool
+cond1 e@(Lit _)  = e
+cond1 e@(VarB _) = e
+cond1 (BinOp And e2 e3)   = cond1 e2 /\ cond1 e3
+cond1 (BinOp Or e2 e3)    = cond1 e2 \/ cond1 e3
+cond1 (BinOp Imply e2 e3) = cond1 e2 ==> cond1 e3
+cond1 e@(BinOp Lt e2 e3)    = fromMaybe e
+  (cond2 (BinOp Lt e2) e3 <|> cond2 (flip (BinOp Lt) e3) e2)
+cond1 e@(BinOp LEq e2 e3)   = fromMaybe e
+  (cond2 (BinOp LEq e2) e3 <|> cond2 (flip (BinOp LEq) e3) e2)
+cond1 e@(BinOp Eq e2 e3)    = fromMaybe e
+  (cond2 (BinOp Eq e2) e3 <|> cond2 (flip (BinOp Eq) e3) e2)
+cond1 (UnOp op e)         = neg $ cond1 e
+cond1 (Forall v e)        = forall v (cond1 e)
+
+cond2 :: (Expr Integer -> Expr Bool) -> Expr Integer -> Maybe (Expr Bool)
+cond2 f e@(Lit expr)  = Nothing
+cond2 f e@(VarI expr) = Nothing
+cond2 f e@(IxIArr name ix) = Nothing
+cond2 f (BinOp Add e2 e3)  =
+  cond2 (f . BinOp Add e2) e3 <|> cond2 (f . BinOp Add e3) e2
+cond2 f (BinOp Minus e2 e3) =
+  cond2 (f . BinOp Minus e2) e3 <|> cond2 (f . BinOp Minus e3) e2
+cond2 f (Cond c e1 e2) = Just $ cond1 ((c ==> f e1) /\ (neg c ==> f e2))
+
 freeVars :: Expr t -> [Var]
 freeVars expr = case expr of
   Lit    _   -> []
@@ -164,7 +207,7 @@ freeVars expr = case expr of
   VarB n  -> [n ::: bool]
   Forall var e -> var `delete` freeVars e
   IxIArr n ix -> [n ::: intarr] ++ freeVars ix
-  IxBArr n ix -> [n ::: boolarr] ++ freeVars ix
+  -- IxBArr n ix -> [n ::: boolarr] ++ freeVars ix
   UnOp _ e       -> freeVars e
   BinOp _ e1 e2  -> nub (freeVars e1 ++ freeVars e2)
 
@@ -180,7 +223,7 @@ subst1 map_ e =
     Forall var e   -> Forall var (subst1 map_ e)
     Lit b          -> e
     IxIArr name ix  -> IxIArr name (subst1 map_ ix)
-    IxBArr _ ix -> e
+    -- IxBArr _ ix -> e
 
 subst2 :: Map Name (Expr Integer) -> Expr a -> Expr a
 subst2 map_ e =
@@ -191,7 +234,7 @@ subst2 map_ e =
     Forall var e   -> Forall var (subst2 map_ e)
     Lit b          -> e
     IxIArr name ix  -> IxIArr name (subst2 map_ ix)
-    IxBArr name ix -> e
+    -- IxBArr name ix -> e
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -201,10 +244,11 @@ instance Pretty t => Pretty (Expr t) where
   pretty (VarI n)  = text n
   pretty (VarB n) = text n
   pretty (IxIArr n ix)  = hcat [text n, brackets (pretty ix)]
-  pretty (IxBArr n ix) = hcat [text n, brackets (pretty ix)]
+  -- pretty (IxBArr n ix) = hcat [text n, brackets (pretty ix)]
   pretty (Forall var e)   = hsep [text "forall ", pretty var] <> char '.' <+> pretty e
   pretty (UnOp  op  e1)   = hcat [pretty op, pretty e1]
   pretty (BinOp op e1 e2) = parens (hcat [pretty e1, pretty op,  pretty e2])
+  pretty (Cond e1 e2 e3)  = hsep [pretty e1, text "-->", pretty e2, char '|', pretty e3]
 
 instance (Pretty a, Pretty b) => Pretty (BinOp a b) where
   pretty And = text "/\\"
@@ -214,7 +258,7 @@ instance (Pretty a, Pretty b) => Pretty (BinOp a b) where
   pretty Minus = text "-"
   pretty Lt = text "<"
   pretty LEq = text "<="
-  pretty Eq = text "=="
+  pretty Eq = text "="
 
 instance Pretty a => Pretty (UnOp a) where
   pretty Not = char '~'

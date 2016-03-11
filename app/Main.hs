@@ -24,6 +24,8 @@ verify stmt = do
     displayIO stdout (renderPretty 0.1 80 (pretty obl))
     putStrLn "\n"
     print result
+  putStrLn "wlp: "
+  displayIO stdout (renderPretty 0.1 80 (pretty p))
   prove (interpret' p ) >>= print
 
 main :: IO ()
