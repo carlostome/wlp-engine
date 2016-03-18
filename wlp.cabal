@@ -23,6 +23,7 @@ library
                        containers,
                        sbv,
                        mtl,
+                       Stream,
                        ansi-wl-pprint
   default-language:    Haskell2010
 

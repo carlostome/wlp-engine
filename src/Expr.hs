@@ -18,15 +18,15 @@ module Expr (
   interpret',
   -- ** Auxiliary functions
   subst1, subst2, boundVars, cond1, cond2, splice
-  
+
   ) where
 
+import           Control.Applicative          ((<|>))
 import           Data.List                    (delete, nub)
 import           Data.Map                     (Map)
 import qualified Data.Map                     as M
-import Control.Applicative ((<|>))
-import Data.Maybe (fromMaybe)
-import           Data.SBV                     hiding (forall, (==>), (<+>))
+import           Data.Maybe                   (fromMaybe)
+import           Data.SBV                     hiding (forall, (<+>), (==>))
 import qualified Data.SBV                     as SBV
 import           Text.PrettyPrint.ANSI.Leijen hiding (bool, int)
 
@@ -247,13 +247,13 @@ instance Pretty t => Pretty (Expr t) where
   -- pretty (IxBArr n ix) = hcat [text n, brackets (pretty ix)]
   pretty (Forall var e)   = hsep [text "forall ", pretty var] <> char '.' <+> pretty e
   pretty (UnOp  op  e1)   = hcat [pretty op, pretty e1]
-  pretty (BinOp op e1 e2) = parens (hcat [pretty e1, pretty op,  pretty e2])
+  pretty (BinOp op e1 e2) = hcat [pretty e1, pretty op,  pretty e2]
   pretty (Cond e1 e2 e3)  = hsep [pretty e1, text "-->", pretty e2, char '|', pretty e3]
 
 instance (Pretty a, Pretty b) => Pretty (BinOp a b) where
-  pretty And = text "/\\"
-  pretty Or  = text "\\/"
-  pretty Imply = text "==>"
+  pretty And = text " /\\ "
+  pretty Or  = text " \\/ "
+  pretty Imply = text " ==> "
   pretty Add = text "+"
   pretty Minus = text "-"
   pretty Lt = text "<"

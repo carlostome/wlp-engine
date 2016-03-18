@@ -4,7 +4,11 @@ import           Control.Monad.Writer         hiding ((<>))
 import           Data.Map                     (Map)
 import qualified Data.Map                     as M
 import           Text.PrettyPrint.ANSI.Leijen hiding (bool, int)
+import qualified Data.Stream as S
+import Data.Stream (Stream)
+import System.IO.Unsafe
 
+import Data.SBV (isTheorem)
 import Var
 import Expr
 
@@ -20,6 +24,7 @@ data Stmt
   | Choice Stmt Stmt
   | While (Expr Bool) (Expr Bool) Stmt
   | WhileK Integer (Expr Bool) Stmt
+  | WhileF (Expr Bool) Stmt
   | Scope [Var] Stmt
 
 
@@ -31,6 +36,7 @@ asgi  = AsgI
 asgai = AsgAI
 while = While
 whileK = WhileK
+whileF = WhileF
 stmts :: [Stmt] -> Stmt
 stmts  = foldr Seq Skip
 vars vs = Scope vs . foldr Seq Skip
@@ -66,13 +72,29 @@ wlp' stmt q =
     WhileK n cond s -> do
       wk <- wlp' (WhileK (n-1) cond s) q >>= wlp' s
       return $ (cond /\ wk) \/ (neg cond /\ q)
+    WhileF cond s -> do
+      let minv = calculateFix cond s q
+      maybe (error "Cannot calculate invariant") return minv
     Scope vs s ->
       do w <- wlp' s q
          return (foralls vs w)
 
--- fixpoint :: (Stmt -> Expr Bool -> Expr Bool) -> Expr Bool -> Stmt -> Expr Bool -> Expr Bool
--- fixpoint wlp g s q =
---   let  
+calculateFix :: Expr Bool -> Stmt -> Expr Bool -> Maybe (Expr Bool)
+calculateFix cond s q =
+  go (pair $ S.iterate (\w -> (cond /\ fst (wlp s w)) \/ (neg cond /\ q))(l True))
+  where
+     go :: Stream (Expr Bool, Expr Bool) -> Maybe (Expr Bool)
+     go stream =
+          let (w0,w1)  = S.head stream
+              intrp    = interpret' (boundVars $ (w0 ==> w1) /\ (w1 ==> w0))
+          in let result = unsafePerformIO (isTheorem Nothing intrp)
+             in case result of
+                  Nothing    -> Nothing
+                  Just isEq  -> if isEq then Just w1 else go (S.tail stream)
+
+pair :: Stream a -> Stream (a,a)
+pair (S.Cons a (S.Cons b s)) = (a,b) S.<:> pair (S.Cons b s)
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
