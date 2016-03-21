@@ -138,11 +138,27 @@ var a:[int], i:int, s:int, N:int in
   assert true
 end
 -}
-loop1k :: Integer -> Integer ->  Stmt
-loop1k k n = vars ["a" ::: intarr, "i" ::: int, "s" ::: int, "N" ::: int]
+loop1 :: (Expr Bool -> Stmt -> Stmt) -> Integer -> Stmt
+loop1 while n = vars ["a" ::: intarr, "i" ::: int, "s" ::: int, "N" ::: int]
           [ assume (vi "i" ==. l 0 /\ vi "s" ==. l 0 /\ l 0 <=. vi "N" /\ vi "N" ==. l n)
-          , whileK k (vi "i" <. vi "N")
+          , while  (vi "i" <. vi "N")
                       (stmts [ assert (vi "i" >=. l 0 /\ vi "i" <. vi "N")
                              , asgi ["s"] [vi "s" +. "a" `ati` vi "i"]
                              , asgi ["i"] [vi "i" +. l 1]])
+          , assert (l True)]
+
+{-- | Loop2
+var a:[int], i:int, N:int, k:int in
+  assume 0=i /\ 0<=N /\ 0<=k /\ k<N ;
+  while i<N { i := i+1 }
+  assert 0<=k /\ k<N ;
+  s = a[k]
+  assert true
+--}
+loop2 :: (Expr Bool -> Stmt -> Stmt) -> Integer -> Stmt
+loop2 while n = vars ["a" ::: intarr, "i" ::: int, "s" ::: int, "N" ::: int, "k"::: int]
+          [ assume (vi "i" ==. l 0 /\ l 0 <=. vi "N" /\ l 0 <=. vi "k" /\ vi "k" <. vi "N" /\ vi "N" ==. l n)
+          , while (vi "i" <. vi "N") (asgi ["i"] [vi "i" +. l 1])
+          , assert (l 0 <=. vi "k" /\ vi "k" <. vi "N")
+          , asgi ["s"] ["a" `ati` vi "k"]
           , assert (l True)]

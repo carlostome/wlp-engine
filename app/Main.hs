@@ -17,16 +17,13 @@ verify :: Stmt -> IO ()
 verify stmt = do
   putStrLn "Verifying the following program: \n"
   displayIO stdout (renderPretty 0.1 80 (pretty stmt))
-  let (p,po) = wlp stmt (l True)
-  unless (null $ po) (putStrLn "\n\nProof obligations of while loops:")
-  forM_ po $ \obl -> do
-    result <- prove (interpret' obl)
-    displayIO stdout (renderPretty 0.1 80 (pretty obl))
-    putStrLn "\n"
-    print result
-  putStrLn "wlp: "
-  displayIO stdout (renderPretty 0.1 80 (pretty p))
-  prove (interpret' p ) >>= print
+  let w = wlp stmt (l True)
+  case w of
+    Left err   ->
+      displayIO stdout (renderPretty 0.1 80 (pretty err))
+    Right expr -> do
+      putStrLn ""
+      prove (interpret' expr ) >>= print
 
 main :: IO ()
 main = mapM_ verify
@@ -34,3 +31,7 @@ main = mapM_ verify
   , swap2
   , d1
   , d2 ]
+
+pprint :: Pretty a => a -> IO ()
+pprint p =
+  displayIO stdout (renderPretty 0.1 80 (pretty p))
