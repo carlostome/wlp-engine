@@ -1,37 +1,52 @@
-module Main where
+module Main (verifyStmt, verifyProg, main) where
 
 --
 import Text.PrettyPrint.ANSI.Leijen hiding (int, bool)
 import System.IO (stdout)
-import Control.Monad (unless, forM_,)
-import Data.SBV (prove)
 
 import Stmt
-import Expr
 import Example
 
 -- | Main entry point of wlp-engine.
 --   If any of the proof obligations generated in a while loop
 --   invariant fails then verify fails.
-verify :: Stmt -> IO ()
-verify stmt = do
+verifyStmt :: Stmt -> IO ()
+verifyStmt stmt = do
   putStrLn "Verifying the following program: \n"
   displayIO stdout (renderPretty 0.1 80 (pretty stmt))
-  let w = wlp stmt (l True)
+  putStrLn ""
+  let w = wlp stmt (lb True)
   case w of
-    Left err   ->
-      displayIO stdout (renderPretty 0.1 80 (pretty err))
+    Left err   -> do
+      putStrLn "Error:"
+      pprint err
     Right expr -> do
+      pprint expr
       putStrLn ""
-      prove (interpret' expr ) >>= print
+      pprint $ prove expr
+      putStrLn ""
 
-main :: IO ()
-main = mapM_ verify
-  [ swap1
-  , swap2
-  , d1
-  , d2 ]
+verifyProg :: [Prog] -> Prog -> IO ()
+verifyProg env prog' = do
+  putStrLn "Verifying the following program: \n"
+  displayIO stdout (renderPretty 0.1 80 (pretty prog'))
+  putStrLn ""
+  let w = wlpProg env prog' (lb True)
+  case w of
+    Left err   -> do
+      putStrLn "Error:"
+      pprint err
+    Right expr -> do
+      pprint expr
+      putStrLn ""
+      pprint $ prove expr
+      putStrLn ""
+
 
 pprint :: Pretty a => a -> IO ()
-pprint p =
+pprint p = do
   displayIO stdout (renderPretty 0.1 80 (pretty p))
+  putStrLn ""
+
+main :: IO ()
+main = verifyStmt swap1
