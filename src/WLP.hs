@@ -1,11 +1,15 @@
-module Main (verifyStmt, verifyProg, main) where
+module WLP (
+  verifyStmt,
+  verifyProg,
+  module Stmt,
+  pprint
+  ) where
 
 --
 import Text.PrettyPrint.ANSI.Leijen hiding (int, bool)
 import System.IO (stdout)
 
 import Stmt
-import Example
 
 -- | Main entry point of wlp-engine.
 --   If any of the proof obligations generated in a while loop
@@ -47,6 +51,3 @@ pprint :: Pretty a => a -> IO ()
 pprint p = do
   displayIO stdout (renderPretty 0.1 80 (pretty p))
   putStrLn ""
-
-main :: IO ()
-main = verifyStmt swap1

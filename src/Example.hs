@@ -54,8 +54,8 @@ var a:[int], j:int, i:int, x:int, y:int in
   assert (a[i] = y /\ a[j] = x);
 end
 -}
-swaparr1 :: Stmt
-swaparr1 =
+swaparr :: Stmt
+swaparr =
   var (ai "a") $ var (i "i") $ var ("j" ::: int) $ var ("x" ::: int) $ var ("y" ::: int) $ stmts
       [ assume ((("a" `ixi` vi "i") ==. vi "x") /\ (("a" `ixi` vi "j") ==. vi "y"))
       , var ("tmp" ::: int) $ stmts
@@ -166,7 +166,7 @@ end
 loop1 :: (Expr BOOL -> Stmt -> Stmt) -> Int -> Stmt
 loop1 while' n =
   var ("a" ::: intarr) $ var ("i" ::: int) $ var ("s" ::: int) $ var ("N" ::: int) $ stmts
-    [ assume (vi "i" ==. li 0 /\ vi "s" ==. li 0 /\ li 0 <=. vi "N" /\ vi "N" ==. li n)
+    [ assume (vi "i" ==. li 0 /\ vi "s" ==. li 0 /\ li 0 <=. vi "N")
     , while'  (vi "i" <. vi "N")
        (stmts [ assert (vi "i" >=. li 0 /\ vi "i" <. vi "N")
               , asg [i "s" .:= vi "s" +. "a" `ixi` vi "i"]
@@ -199,7 +199,8 @@ inc :: Prog
 inc = prog "inc"
       [u (i "i")]
       [u (i "r")]
-      (asg [i "r" .:= vi "i" +. li 1])
+      (stmts [ asg [i "r" .:= vi "i" +. li 1]
+             , assert ( vi "r" ==. vi "i" +. li 1)])
 
 incspec :: Prog
 incspec =
@@ -217,8 +218,8 @@ prog1 =
   (var ("x" ::: int) $
     var ("y"  ::: int) $ stmts
       [ assume (vi "x" ==. vi "y")
-      , pcall [ut (tv (i "x"))] "incspec" [ue (vi "x")]
-      -- , pcall [ut (tv (i "x"))] "inc" [ue (vi "x")]
+      --, pcall [ut (tv (i "x"))] "incspec" [ue (vi "x")]
+      , pcall [ut (tv (i "x"))] "inc" [ue (vi "x")]
       , assert (vi "x" ==. vi "y" +. li 1)])
 
 incenv :: [Prog]
@@ -268,13 +269,13 @@ sort =
       , asg [i "i" .:= li 0]
       , while (vi "i" <. vi "N" /\ vi "i" >=. li 0)
               (vi "i" <. vi "N" -. li 1) $ stmts
-          [ pcall [ut (tv (i "m"))] "minind" [ue (vai "a"), ue (vi "i" +. li 1), ue (vi "N")]
+          [ pcall [ut (tv (i "m"))] "minind_spec" [ue (vai "a"), ue (vi "i" +. li 1), ue (vi "N")]
           , ifS ("a" `ixi` (vi "m") <. "a" `ixi` (vi "i") )
                 (pcall [ut (tv (ai "a"))] "swap" [ue (vai "a"), ue (vi "i"), ue (vi "m")])
                 skip
           , asg [i "i" .:= vi "i" +. li 1]]]
-    -- , assert (forall ("k" ::: int) (li 0 <=. vi "k" /\ vi "k" <. vi "N" -. li 1 ==>
-    --          (("a" `ixi` vi "k") <=. ("a" `ixi` (vi "k" +. li 1)) )))
+    , assert (forall ("k" ::: int) (li 0 <=. vi "k" /\ vi "k" <. vi "N" -. li 1 ==>
+             (("a" `ixi` vi "k") <=. ("a" `ixi` (vi "k" +. li 1)) )))
     , asg [ai "b'" .:= vai "a"]]
 
 swap :: Prog
@@ -288,25 +289,6 @@ swap = prog "swap" [u ("a''" ::: intarr), u (i "i''"), u (i "j''")] [u ("ret" ::
       , asg [ai "ret" .:= vai "a''"]
       , assert ((("ret" `ixi` vi "i''") ==. vi "y") /\ (("ret" `ixi` vi "j''") ==. vi "x"))]
 
-minind' :: Prog
-minind' =
-  prog "minind"
-    [u ("a'" ::: intarr), u ("i'" ::: int), u ("N'" ::: int)]
-
-    [u ("r" ::: int)] $ stmts
-
-    [ assume (vi "i'" <. vi "N'" /\ li 0 <=. vi "i'")
-    , var ("min" ::: int) $ var ("i0" ::: int) $ stmts
-        [ asg [i "r" .:= vi "i'", i "min" .:= "a'" `ixi` vi "i'"]
-        , while  (vi "i'" <=. vi "N'") (vi "i'" <. vi "N'")
-            (stmts
-              [choice
-                [stmts [ assume (("a'" `ixi` vi "i'") <. vi "min")
-                       , asg [i "r" .:= vi "i'", i "min" .:=  "a'" `ixi` vi "i'"]]
-                ,stmts [assume (neg (("a'" `ixi` vi "i'") <. vi "min"))
-                       ,skip]]
-              ,asg [i "i'" .:= vi "i'" +. li 1]])]]
-
 minind_spec :: Prog
 minind_spec =
   spec "minind_spec"
@@ -316,4 +298,4 @@ minind_spec =
   (forall (i "k") ((vi "k" >=. vi "i" /\ vi "k" <. vi "N") ==> ("a'" `ixi` vi "r" <=. "a'" `ixi` vi "k")))
 
 sortenv :: [Prog]
-sortenv = [minind', swap, minind_spec]
+sortenv = [swap, minind_spec]
