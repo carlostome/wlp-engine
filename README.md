@@ -2,7 +2,7 @@
 
 Weakest liberal precondition for GCL programs.
 
-# Installation
+## Installation
 
 1.  Download and install the Haskell platform for your operating system.
     The Haskell platform can be found in https://www.haskell.org/platform/. 
@@ -25,7 +25,7 @@ git clone https://github.com/carlostome/wlp-engine.git
 
 4. cd into the project and build the project with `stack build`.
 
-# Usage
+## Usage
 
 The easiest way to play with this library is to use it in a live ghci session.
 In order to do so, just type `stack ghci` in the project folder.
